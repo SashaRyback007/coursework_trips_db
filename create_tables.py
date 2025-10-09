@@ -5,4 +5,4 @@ engine = create_engine("mysql+pymysql://root:Sasha%2ERyback2007@localhost:3306/t
 
 Base.metadata.create_all(engine)
 
-print("✅ Таблиці створені/оновлені успішно")
+print(" Таблиці створені/оновлені успішно")

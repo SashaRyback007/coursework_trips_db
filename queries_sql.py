@@ -5,7 +5,7 @@ engine = create_engine("mysql+pymysql://root:Sasha%2ERyback2007@localhost:3306/t
 
 with engine.connect() as conn:
 
-    print("\n📌 Бронювання клієнта Ivan Petrenko:")
+    print("\n Бронювання клієнта Ivan Petrenko:")
     sql1 = text("""
         SELECT c.first_name, c.last_name, t.title, t.date, b.seats
         FROM bookings b
@@ -15,12 +15,12 @@ with engine.connect() as conn:
     """)
     start = datetime.now()
     result1 = conn.execute(sql1)
-    print("⏱️ Час SQL-запиту 1:", datetime.now() - start)
+    print("Час SQL-запиту 1:", datetime.now() - start)
     for row in result1:
         print(f"{row.first_name} {row.last_name} → {row.title}, {row.date}, Seats: {row.seats}")
 
     
-    print("\n📌 Кількість бронювань на кожну поїздку:")
+    print("\n Кількість бронювань на кожну поїздку:")
     sql2 = text("""
         SELECT t.title, COUNT(b.booking_id) AS total_bookings
         FROM trips t
@@ -29,16 +29,16 @@ with engine.connect() as conn:
     """)
     start = datetime.now()
     result2 = conn.execute(sql2)
-    print("⏱️ Час SQL-запиту 2:", datetime.now() - start)
+    print(" Час SQL-запиту 2:", datetime.now() - start)
     for row in result2:
         print(f"{row.title}: {row.total_bookings} бронювань")
 
     
-    print("\n📌 Загальна сума оплат:")
+    print("\n Загальна сума оплат:")
     sql3 = text("""
         SELECT SUM(amount) AS total_amount FROM payments;
     """)
     start = datetime.now()
     result3 = conn.execute(sql3).fetchone()
-    print("⏱️ Час SQL-запиту 3:", datetime.now() - start)
+    print(" Час SQL-запиту 3:", datetime.now() - start)
     print(f"Загальна сума оплат: {result3.total_amount}")
