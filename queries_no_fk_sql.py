@@ -1,39 +1,70 @@
-# SQL без зв’язків.
 from sqlalchemy import create_engine, text
 from datetime import datetime
+from decimal import Decimal
+import sys
 
-engine = create_engine("mysql+pymysql://root:Sasha%2ERyback2007@localhost:3306/trips_db_no_fk")
+engine = create_engine("mysql+pymysql://root:Sasha.Ryback2007@localhost:3306/trips_db_no_fk")
+
+
+try:
+    engine.connect()
+except Exception as e:
+    print(f"Помилка підключення до бази даних trips_db_no_fk: {e}")
+    sys.exit(1)
+
 
 with engine.connect() as conn:
-    print("\n Бронювання клієнта Ivan Petrenko:")
+    print("\n === ТЕСТУВАННЯ ЧИСТОГО SQL (БЕЗ FOREIGN KEYS) ===")
+
+  
+    print("\n [1] Деталі виконання поїздки клієнта Ivan Petrenko (5 таблиць):")
     start = datetime.now()
+    
+
     sql = text("""
-        SELECT c.first_name, c.last_name, t.title, t.date, b.seats
-        FROM bookings b, clients c, trips t
-        WHERE b.client_id = c.client_id AND b.trip_id = t.trip_id
-        AND c.first_name = 'Ivan';
+        SELECT 
+            c.first_name, 
+            t.title, 
+            dr.last_name AS driver_name, 
+            v.registration_number 
+        FROM bookings b
+        JOIN clients c ON b.client_id = c.client_id
+        JOIN trips t ON b.trip_id = t.trip_id
+        -- Зв'язування з логістичними таблицями через Triplog
+        JOIN triplog tl ON t.trip_id = tl.trip_id
+        JOIN drivers dr ON tl.driver_id = dr.driver_id
+        JOIN vehicles v ON tl.vehicle_id = v.vehicle_id
+        WHERE c.first_name = 'Ivan';
     """)
     result = conn.execute(sql)
-    print("Час ORM-запиту 1:", datetime.now() - start)
+    
+    print(" Час SQL-запиту 1:", datetime.now() - start)
     for row in result:
-        print(f"{row.first_name} {row.last_name} → {row.title}, {row.date}, Seats: {row.seats}")
+        print(f"{row.first_name} → Trip: {row.title}, Driver: {row.driver_name}, Vehicle: {row.registration_number}")
 
-    print("\n Кількість бронювань на кожну поїздку:")
+    
+    print("\n [2] Кількість бронювань на кожну поїздку:")
     start = datetime.now()
+   
     sql2 = text("""
         SELECT t.title, COUNT(b.booking_id) AS total_bookings
-        FROM trips t, bookings b
-        WHERE t.trip_id = b.trip_id
+        FROM trips t
+        JOIN bookings b ON t.trip_id = b.trip_id
         GROUP BY t.title;
     """)
     result2 = conn.execute(sql2)
-    print(" Час ORM-запиту 2:", datetime.now() - start)
+    
+    print(" Час SQL-запиту 2:", datetime.now() - start)
     for row in result2:
         print(f"{row.title}: {row.total_bookings} бронювань")
 
-    print("\n Загальна сума оплат:")
+    
+    print("\n [3] Загальна сума оплат:")
     start = datetime.now()
     sql3 = text("SELECT SUM(amount) AS total_amount FROM payments;")
-    result3 = conn.execute(sql3).fetchone()
-    print("Час ORM-запиту 3:", datetime.now() - start)
-    print(f"Загальна сума оплат: {result3.total_amount}")
+    total_amount = conn.execute(sql3).scalar_one()
+    
+    print(" Час SQL-запиту 3:", datetime.now() - start)
+    
+    formatted_total = f"{total_amount:.2f}" if isinstance(total_amount, Decimal) else total_amount
+    print(f"Загальна сума оплат: {formatted_total}")
