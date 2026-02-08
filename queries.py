@@ -1,21 +1,18 @@
 from sqlalchemy import create_engine, Column, Integer, String, Date, DECIMAL, ForeignKey
 from sqlalchemy.orm import sessionmaker, relationship, declarative_base
 from sqlalchemy.sql import func
-from datetime import datetime
 from decimal import Decimal
 import sys
 
-
+# Використовуємо ту ж базу, що й у ваших моделях
 Base = declarative_base()
 
-
+# --- Опис моделей (має збігатися з вашим models.py) ---
 class Client(Base):
     __tablename__ = 'clients'
     client_id = Column(Integer, primary_key=True)
     first_name = Column(String)
     last_name = Column(String)
-    
-   
     bookings = relationship("Booking", back_populates="client")
 
 class Trip(Base):
@@ -23,10 +20,7 @@ class Trip(Base):
     trip_id = Column(Integer, primary_key=True)
     title = Column(String)
     date = Column(Date)
-    
-    
     bookings = relationship("Booking", back_populates="trip")
-   
     triplogs = relationship("Triplog", back_populates="trip")
 
 class Booking(Base):
@@ -35,8 +29,6 @@ class Booking(Base):
     client_id = Column(Integer, ForeignKey('clients.client_id'))
     trip_id = Column(Integer, ForeignKey('trips.trip_id'))
     seats = Column(Integer)
-    
-    
     client = relationship("Client", back_populates="bookings")
     trip = relationship("Trip", back_populates="bookings")
 
@@ -46,80 +38,76 @@ class Triplog(Base):
     trip_id = Column(Integer, ForeignKey('trips.trip_id'))
     driver_id = Column(Integer, ForeignKey('drivers.driver_id'))
     vehicle_id = Column(Integer, ForeignKey('vehicles.vehicle_id'))
-    
     trip = relationship("Trip", back_populates="triplogs")
-    driver = relationship("Driver", back_populates="triplogs")
-    vehicle = relationship("Vehicle", back_populates="triplogs")
+    driver = relationship("Driver", back_populates="driver_logs") # Виправлено для збігу
+    vehicle = relationship("Vehicle", back_populates="vehicle_logs") # Виправлено для збігу
 
 class Driver(Base):
     __tablename__ = 'drivers'
     driver_id = Column(Integer, primary_key=True)
     last_name = Column(String)
-    triplogs = relationship("Triplog", back_populates="driver")
+    driver_logs = relationship("Triplog", back_populates="driver")
 
 class Vehicle(Base):
     __tablename__ = 'vehicles'
     vehicle_id = Column(Integer, primary_key=True)
     model = Column(String)
-    triplogs = relationship("Triplog", back_populates="vehicle")
+    vehicle_logs = relationship("Triplog", back_populates="vehicle")
     
 class Payment(Base):
     __tablename__ = 'payments'
     payment_id = Column(Integer, primary_key=True)
     amount = Column(DECIMAL(10, 2))
 
-
-engine = create_engine("mysql+pymysql://root:Sasha.Ryback2007@localhost:3306/trips_db") # База даних З FK
+# --- Налаштування підключення ---
+engine = create_engine("mysql+pymysql://root:Sasha.Ryback2007@localhost:3306/trips_db")
 Session = sessionmaker(bind=engine)
 session = Session()
 
-print("\n === ТЕСТУВАННЯ ORM (З FK) ===")
+# --- Функції запитів для тестування (Benchmark) ---
 
-try:
-    session.connection()
-except Exception as e:
-    print(f"Помилка підключення до бази даних: {e}")
-    sys.exit(1)
+def get_bookings_by_client_orm(name="Ivan"):
+    """Запит [1]: Пошук бронювань конкретного клієнта (N+1 навігація)"""
+    client = session.query(Client).filter_by(first_name=name).first()
+    data = []
+    if client:
+        for booking in client.bookings:
+            # Навігація через об'єкти (те, що ми тестуємо)
+            trip_info = {
+                "title": booking.trip.title,
+                "driver": booking.trip.triplogs[0].driver.last_name if booking.trip.triplogs else "N/A"
+            }
+            data.append(trip_info)
+    return data
 
+def get_trip_booking_counts_orm():
+    """Запит [2]: Кількість бронювань на кожну поїздку (JOIN + GROUP BY)"""
+    return (
+        session.query(Trip.title, func.count(Booking.booking_id).label("total"))
+        .outerjoin(Booking)
+        .group_by(Trip.title)
+        .all()
+    )
 
-print("\n [1] Бронювання та деталі виконання клієнта Ivan Petrenko (N+1-подібна навігація):")
-start = datetime.now()
+def get_total_payments_orm():
+    """Запит [3]: Загальна сума всіх платежів (Aggregate SUM)"""
+    return session.query(func.sum(Payment.amount)).scalar()
 
-
-client = session.query(Client).filter_by(first_name="Ivan").first()
-
-if client:
+# --- Блок демонстрації (запускається тільки при прямому запуску файлу) ---
+if __name__ == "__main__":
+    print("\n=== ДЕМОНСТРАЦІЯ ЗАПИТІВ ORM ===")
     
-    for booking in client.bookings:
-       
-        if booking.trip.triplogs:
-            log = booking.trip.triplogs[0]
-            print(f"Trip: {booking.trip.title}, Driver: {log.driver.last_name}, Vehicle: {log.vehicle.model}")
-        else:
-            print(f"Trip: {booking.trip.title}, (Деталі виконання відсутні)")
+    # 1. Тест клієнта
+    ivan_data = get_bookings_by_client_orm("Ivan")
+    print(f"\n[1] Бронювання Івана: Знайдено {len(ivan_data)} поїздок.")
+    
+    # 2. Тест статистики
+    stats = get_trip_booking_counts_orm()
+    print(f"[2] Статистика поїздок: Отримано дані для {len(stats)} напрямків.")
+    
+    # 3. Тест оплат
+    total = get_total_payments_orm()
+    formatted_total = f"{total:.2f}" if isinstance(total, Decimal) else "0.00"
+    print(f"[3] Загальний оборот: {formatted_total} грн.")
 
-print(" Час ORM-запиту 1 (N+1):", datetime.now() - start)
-
-
-print("\n [2] Кількість бронювань на кожну поїздку (ORM JOIN):")
-start = datetime.now()
-results = (
-    session.query(Trip.title, func.count(Booking.booking_id).label("total_bookings"))
-    .outerjoin(Booking) # ORM автоматично використовує FK для LEFT JOIN
-    .group_by(Trip.title)
-    .all()
-)
-print(" Час ORM-запиту 2 (JOIN):", datetime.now() - start)
-for trip, count in results:
-    print(f"{trip}: {count} бронювань")
-
-
-print("\n [3] Загальна сума оплат (ORM Aggregate):")
-start = datetime.now()
-total_payments = session.query(func.sum(Payment.amount)).scalar()
-print(" Час ORM-запиту 3 (Aggregate):", datetime.now() - start)
-
-formatted_total = f"{total_payments:.2f}" if isinstance(total_payments, Decimal) else total_payments
-print(f"Загальна сума оплат: {formatted_total}")
-
-session.close()
+    session.close()
