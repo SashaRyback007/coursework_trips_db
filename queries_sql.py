@@ -2,7 +2,7 @@ from sqlalchemy import create_engine, text
 from decimal import Decimal
 import sys
 
-# Підключення до бази даних
+
 engine = create_engine("mysql+pymysql://root:Sasha.Ryback2007@localhost:3306/trips_db")
 
 def get_bookings_by_client_sql(name='Ivan'):
@@ -43,7 +43,6 @@ def get_total_payments_sql():
     with engine.connect() as conn:
         return conn.execute(sql).scalar_one()
 
-# Блок для швидкої перевірки роботи файлу
 if __name__ == "__main__":
     print("=== ПЕРЕВІРКА ЧИСТОГО SQL ===")
     try:

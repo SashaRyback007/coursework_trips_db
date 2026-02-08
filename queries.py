@@ -4,10 +4,10 @@ from sqlalchemy.sql import func
 from decimal import Decimal
 import sys
 
-# Використовуємо ту ж базу, що й у ваших моделях
+
 Base = declarative_base()
 
-# --- Опис моделей (має збігатися з вашим models.py) ---
+
 class Client(Base):
     __tablename__ = 'clients'
     client_id = Column(Integer, primary_key=True)
@@ -39,8 +39,8 @@ class Triplog(Base):
     driver_id = Column(Integer, ForeignKey('drivers.driver_id'))
     vehicle_id = Column(Integer, ForeignKey('vehicles.vehicle_id'))
     trip = relationship("Trip", back_populates="triplogs")
-    driver = relationship("Driver", back_populates="driver_logs") # Виправлено для збігу
-    vehicle = relationship("Vehicle", back_populates="vehicle_logs") # Виправлено для збігу
+    driver = relationship("Driver", back_populates="driver_logs") 
+    vehicle = relationship("Vehicle", back_populates="vehicle_logs") 
 
 class Driver(Base):
     __tablename__ = 'drivers'
@@ -59,12 +59,12 @@ class Payment(Base):
     payment_id = Column(Integer, primary_key=True)
     amount = Column(DECIMAL(10, 2))
 
-# --- Налаштування підключення ---
+
 engine = create_engine("mysql+pymysql://root:Sasha.Ryback2007@localhost:3306/trips_db")
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# --- Функції запитів для тестування (Benchmark) ---
+
 
 def get_bookings_by_client_orm(name="Ivan"):
     """Запит [1]: Пошук бронювань конкретного клієнта (N+1 навігація)"""
@@ -93,19 +93,19 @@ def get_total_payments_orm():
     """Запит [3]: Загальна сума всіх платежів (Aggregate SUM)"""
     return session.query(func.sum(Payment.amount)).scalar()
 
-# --- Блок демонстрації (запускається тільки при прямому запуску файлу) ---
+
 if __name__ == "__main__":
     print("\n=== ДЕМОНСТРАЦІЯ ЗАПИТІВ ORM ===")
     
-    # 1. Тест клієнта
+    
     ivan_data = get_bookings_by_client_orm("Ivan")
     print(f"\n[1] Бронювання Івана: Знайдено {len(ivan_data)} поїздок.")
     
-    # 2. Тест статистики
+   
     stats = get_trip_booking_counts_orm()
     print(f"[2] Статистика поїздок: Отримано дані для {len(stats)} напрямків.")
     
-    # 3. Тест оплат
+ 
     total = get_total_payments_orm()
     formatted_total = f"{total:.2f}" if isinstance(total, Decimal) else "0.00"
     print(f"[3] Загальний оборот: {formatted_total} грн.")
